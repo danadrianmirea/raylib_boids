@@ -12,7 +12,7 @@
 // ── Constants ────────────────────────────────────────────────────────────────
 // Use #define for compile-time constants that affect array sizes
 #define SCREEN_WIDTH  1920
-#define SCREEN_HEIGHT 720
+#define SCREEN_HEIGHT 1080
 
 static int ScreenWidth  = SCREEN_WIDTH;
 static int ScreenHeight = SCREEN_HEIGHT;
@@ -566,6 +566,7 @@ int main(void)
         snprintf(buf, sizeof(buf), "Swarms: %d  |  Boids: %d", NumSwarms, BoidCount);
         DrawText(buf, 10, 10 + ls, 20, LIGHTGRAY);
         DrawText("R to reset  |  Click to attract  |  Right-click to repel", 10, 10 + 2 * ls, 20, LIGHTGRAY);
+        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 3 * ls, 20, LIGHTGRAY);
 
         EndDrawing();
         
