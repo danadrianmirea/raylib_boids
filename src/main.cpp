@@ -126,11 +126,9 @@ int main(void)
         BeginDrawing();
         ClearBackground(Color{ 15, 15, 25, 255 });
 
-        DrawCircle(ScreenWidth/2, ScreenHeight/2, 100.0f, BLUE);
-
         // World-space rendering (affected by camera)
         BeginMode2D(camera);
-
+        DrawCircle(ScreenWidth/2, ScreenHeight/2, 100.0f, BLUE);
         EndMode2D();
 
         // UI (screen-space, not affected by camera)
