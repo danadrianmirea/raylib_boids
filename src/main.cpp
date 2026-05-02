@@ -10,9 +10,13 @@
 #endif
 
 // ── Constants ────────────────────────────────────────────────────────────────
-// Use #define for compile-time constants that affect array sizes
-#define SCREEN_WIDTH  1920
-#define SCREEN_HEIGHT 1080
+// World dimensions (the simulation runs in a 1920x1080 coordinate space)
+#define WORLD_WIDTH  1920
+#define WORLD_HEIGHT 1080
+
+// Initial window dimensions (960x540 = 2x downscale of the world)
+#define SCREEN_WIDTH  960
+#define SCREEN_HEIGHT 540
 
 static int ScreenWidth  = SCREEN_WIDTH;
 static int ScreenHeight = SCREEN_HEIGHT;
@@ -38,20 +42,20 @@ const float CohesionWeight = 1.0f;
 const float BoundaryMargin = 40.0f;
 const float TurnForce = 300.0f;
 
-// Spatial grid constants
+// Spatial grid constants (based on world dimensions)
 const int GridCellSize = (int)PerceptionRadius;
-const int GridCols = SCREEN_WIDTH / GridCellSize + 2;
-const int GridRows = SCREEN_HEIGHT / GridCellSize + 2;
+const int GridCols = WORLD_WIDTH / GridCellSize + 2;
+const int GridRows = WORLD_HEIGHT / GridCellSize + 2;
 const int MaxBoidsPerCell = 64;
 
 // ── Camera ───────────────────────────────────────────────────────────────────
 static Camera2D camera;
 
 // ── Pan limits (world-space) ─────────────────────────────────────────────────
-static float panLimitLeft   = -ScreenWidth * 2.0f;
-static float panLimitRight  =  ScreenWidth * 2.0f;
-static float panLimitTop    = -ScreenHeight;
-static float panLimitBottom =  ScreenHeight;
+static float panLimitLeft   = -WORLD_WIDTH * 2.0f;
+static float panLimitRight  =  WORLD_WIDTH * 2.0f;
+static float panLimitTop    = -WORLD_HEIGHT;
+static float panLimitBottom =  WORLD_HEIGHT;
 
 // ── Boid Data ────────────────────────────────────────────────────────────────
 struct Boid
@@ -93,10 +97,12 @@ static float InvSqrt(float x);
 // ── Camera ───────────────────────────────────────────────────────────────────
 void InitCamera()
 {
-    camera.target = Vector2{ (float)SCREEN_WIDTH * 0.5f, (float)SCREEN_HEIGHT * 0.5f };
+    camera.target = Vector2{ (float)WORLD_WIDTH * 0.5f, (float)WORLD_HEIGHT * 0.5f };
     camera.offset = Vector2{ ScreenWidth * 0.5f, ScreenHeight * 0.5f };
     camera.rotation = 0.0f;
-    camera.zoom = 0.7f;
+    // Zoom so the full 1920x1080 world fits in the current window.
+    // At 960x540, zoom = 0.5x (world is 2x larger than window).
+    camera.zoom = (float)ScreenWidth / WORLD_WIDTH;
 }
 
 // ── Helper Functions ─────────────────────────────────────────────────────────
@@ -134,7 +140,7 @@ static void InitBoids()
 
     for (int s = 0; s < NumSwarms; s++)
     {
-        float regionWidth = (SCREEN_WIDTH - 2 * margin) / NumSwarms;
+        float regionWidth = (WORLD_WIDTH - 2 * margin) / NumSwarms;
         float regionStartX = margin + s * regionWidth;
 
         for (int i = 0; i < BoidsPerSwarm; i++)
@@ -144,7 +150,7 @@ static void InitBoids()
 
             boids[index].Position = Vector2{
                 regionStartX + (float)((double)rand() / RAND_MAX) * regionWidth,
-                margin + (float)((double)rand() / RAND_MAX) * (SCREEN_HEIGHT - 2 * margin)
+                margin + (float)((double)rand() / RAND_MAX) * (WORLD_HEIGHT - 2 * margin)
             };
             boids[index].Velocity = Vector2{ cosf(angle) * speed, sinf(angle) * speed };
             boids[index].Acceleration = Vector2{ 0, 0 };
@@ -180,7 +186,6 @@ static void UpdateBoids(float dt)
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
     {
         mousePos = GetMousePosition();
-        // Convert screen mouse to world coordinates
         mousePos = GetScreenToWorld2D(mousePos, camera);
         mouseActive = true;
     }
@@ -190,7 +195,6 @@ static void UpdateBoids(float dt)
     if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     {
         rightClickPos = GetMousePosition();
-        // Convert screen mouse to world coordinates
         rightClickPos = GetScreenToWorld2D(rightClickPos, camera);
         repelActive = true;
     }
@@ -328,12 +332,12 @@ static void UpdateBoids(float dt)
         // Boundary avoidance
         if (posX < BoundaryMargin)
             accX += TurnForce;
-        else if (posX > SCREEN_WIDTH - BoundaryMargin)
+        else if (posX > WORLD_WIDTH - BoundaryMargin)
             accX -= TurnForce;
 
         if (posY < BoundaryMargin)
             accY += TurnForce;
-        else if (posY > SCREEN_HEIGHT - BoundaryMargin)
+        else if (posY > WORLD_HEIGHT - BoundaryMargin)
             accY -= TurnForce;
 
         // Mouse interaction
@@ -386,11 +390,11 @@ static void UpdateBoids(float dt)
         float px = boid.Position.x + vx * dt;
         float py = boid.Position.y + vy * dt;
 
-        // Wrap around
-        if (px < -BoidSize) px = SCREEN_WIDTH + BoidSize;
-        else if (px > SCREEN_WIDTH + BoidSize) px = -BoidSize;
-        if (py < -BoidSize) py = SCREEN_HEIGHT + BoidSize;
-        else if (py > SCREEN_HEIGHT + BoidSize) py = -BoidSize;
+        // Wrap around (world bounds)
+        if (px < -BoidSize) px = WORLD_WIDTH + BoidSize;
+        else if (px > WORLD_WIDTH + BoidSize) px = -BoidSize;
+        if (py < -BoidSize) py = WORLD_HEIGHT + BoidSize;
+        else if (py > WORLD_HEIGHT + BoidSize) py = -BoidSize;
 
         boid.Velocity = Vector2{ vx, vy };
         boid.Position = Vector2{ px, py };
@@ -401,7 +405,7 @@ static void UpdateBoids(float dt)
 static void DrawBorders()
 {
     DrawRectangleLinesEx(
-        Rectangle{ BoundaryMargin, BoundaryMargin, SCREEN_WIDTH - 2 * BoundaryMargin, SCREEN_HEIGHT - 2 * BoundaryMargin },
+        Rectangle{ BoundaryMargin, BoundaryMargin, WORLD_WIDTH - 2 * BoundaryMargin, WORLD_HEIGHT - 2 * BoundaryMargin },
         2,
         Color{ 60, 80, 120, 255 });
 }
@@ -450,7 +454,7 @@ int main(void)
     InitWindow(ScreenWidth, ScreenHeight, "Raylib C++ 2D Boids Flocking Simulation");
     SetTargetFPS(60);
 
-    // Initialize camera centered on the spawn area
+    // Initialize camera centered on the world
     InitCamera();
 
     // Initialize boids
@@ -468,15 +472,11 @@ int main(void)
         float dt = GetFrameTime();
         if (dt > 0.033f) dt = 0.033f;
 
-        // Handle window resize: just update the viewport size and camera offset
-        // so the same world point stays centered. Zoom is NOT changed — we just
-        // get more (or fewer) pixels to render into.
+        // Handle window resize
         if (IsWindowResized())
         {
             ScreenWidth  = GetScreenWidth();
             ScreenHeight = GetScreenHeight();
-            
-            // Keep camera centered on the same world point
             camera.offset.x = ScreenWidth * 0.5f;
             camera.offset.y = ScreenHeight * 0.5f;
         }
@@ -497,7 +497,6 @@ int main(void)
         float wheel = GetMouseWheelMove();
         if (wheel != 0)
         {
-            // Zoom towards mouse cursor
             Vector2 mousePos = GetMousePosition();
             Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
 
@@ -505,7 +504,6 @@ int main(void)
             if (camera.zoom < 0.1f) camera.zoom = 0.1f;
             if (camera.zoom > 10.0f) camera.zoom = 10.0f;
 
-            // Adjust target so the world point under the mouse stays fixed
             Vector2 newWorldPos = GetScreenToWorld2D(mousePos, camera);
             camera.target.x += worldPos.x - newWorldPos.x;
             camera.target.y += worldPos.y - newWorldPos.y;
@@ -567,9 +565,7 @@ int main(void)
         DrawText(buf, 10, 10 + ls, 20, LIGHTGRAY);
         DrawText("R to reset  |  Click to attract  |  Right-click to repel", 10, 10 + 2 * ls, 20, LIGHTGRAY);
         DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 3 * ls, 20, LIGHTGRAY);
-
         EndDrawing();
-        
     }
 
     CloseWindow();
