@@ -56,30 +56,6 @@ Then open `http://localhost:8080` in your browser.
 
 Alternatively, use `run_web.bat` on Windows to build and launch a local server automatically.
 
-## Project Structure
-
-```
-raylib_boids/
-├── src/
-│   ├── main.cpp          — Main simulation code (boid logic, rendering, input)
-│   └── Program.cs        — C# entry point (for .NET integration)
-├── data/
-│   ├── action.mp3        — Click sound effect
-│   └── PressStart2P-Regular.ttf  — Retro pixel font
-├── lib/
-│   ├── libgcc_s_dw2-1.dll
-│   └── libstdc++-6.dll
-├── libraylib.web.a       — Precompiled raylib for WebAssembly
-├── CMakeLists.txt        — CMake build configuration
-├── build_web.sh          — WebAssembly build script
-├── run_web.bat           — Windows batch file to build & serve web version
-├── custom_shell.html     — Custom HTML shell for Emscripten output
-├── raylib_boids.sln      — Visual Studio solution file
-├── main.code-workspace   — VS Code workspace configuration
-├── LICENSE.txt           — MIT License
-└── README.md             — This file
-```
-
 ## License
 
 This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt) for details.
