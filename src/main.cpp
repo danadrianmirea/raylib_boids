@@ -8,6 +8,7 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+#include <ctime>
 
 // ── Constants ────────────────────────────────────────────────────────────────
 // World dimensions (the simulation runs in a 1920x1080 coordinate space)
@@ -22,16 +23,18 @@ static int ScreenWidth  = SCREEN_WIDTH;
 static int ScreenHeight = SCREEN_HEIGHT;
 
 // ── Simulation Constants ─────────────────────────────────────────────────────
-const int NumSwarms = 3;
-const int BoidsPerSwarm = 1500;
-const int BoidCount = NumSwarms * BoidsPerSwarm;
+const int BoidCount = 4500;
 const float BoidSize = 16.0f;
-const float MaxSpeed = 200.0f;
-const float MaxForce = 100.0f;
-const float PerceptionRadius = 80.0f;
-const float PerceptionRadiusSq = PerceptionRadius * PerceptionRadius;
-const float SeparationRadius = 30.0f;
-const float SeparationRadiusSq = SeparationRadius * SeparationRadius;
+
+// Runtime parameters (randomized on reset)
+static int NumSwarms = 3;
+static int BoidsPerSwarm = BoidCount / NumSwarms;
+static float MaxSpeed = 200.0f;
+static float MaxForce = 100.0f;
+static float PerceptionRadius = 80.0f;
+static float PerceptionRadiusSq = PerceptionRadius * PerceptionRadius;
+static float SeparationRadius = 30.0f;
+static float SeparationRadiusSq = SeparationRadius * SeparationRadius;
 
 // Boid rule weights
 const float SeparationWeight = 1.5f;
@@ -42,8 +45,8 @@ const float CohesionWeight = 1.0f;
 const float BoundaryMargin = 40.0f;
 const float TurnForce = 300.0f;
 
-// Spatial grid constants (based on world dimensions)
-const int GridCellSize = (int)PerceptionRadius;
+// Spatial grid constants (based on max possible perception radius)
+const int GridCellSize = 120; // max perception radius
 const int GridCols = WORLD_WIDTH / GridCellSize + 2;
 const int GridRows = WORLD_HEIGHT / GridCellSize + 2;
 const int MaxBoidsPerCell = 64;
@@ -68,7 +71,7 @@ struct Boid
 };
 
 static Boid boids[BoidCount];
-static Color swarmColors[NumSwarms];
+static Color swarmColors[6]; // max possible swarms
 
 // Spatial grid: for each cell, store indices of boids in that cell
 static int gridCellCounts[GridCols * GridRows];
@@ -87,6 +90,7 @@ static const float SinRight = sinf(RightAngle);
 // ── Forward Declarations ─────────────────────────────────────────────────────
 static void InitBoids();
 static void InitSwarmColors();
+static void ResetSimulation();
 static int GetCellIndex(float x, float y);
 static void BuildSpatialGrid();
 static void UpdateBoids(float dt);
@@ -161,7 +165,27 @@ static void InitBoids()
     }
 }
 
+// ── Reset / Randomize ────────────────────────────────────────────────────────
+static void ResetSimulation()
+{
+    // Randomize number of swarms (2 to 6)
+    NumSwarms = 3 + rand() % 4; // 2, 3, 4, 5, or 6
+    BoidsPerSwarm = BoidCount / NumSwarms;
+
+    // Randomize movement parameters within sensible ranges
+    MaxSpeed = 200.0f + (float)(rand() % 201);
+    MaxForce = 50.0f + (float)(rand() % 151);
+    PerceptionRadius = 50.0f + (float)(rand() % 71);
+    PerceptionRadiusSq = PerceptionRadius * PerceptionRadius;
+    SeparationRadius = 15.0f + (float)(rand() % 36);
+    SeparationRadiusSq = SeparationRadius * SeparationRadius;
+
+    InitSwarmColors();
+    InitBoids();
+}
+
 // ── Spatial Grid ─────────────────────────────────────────────────────────────
+
 static void BuildSpatialGrid()
 {
     memset(gridCellCounts, 0, sizeof(gridCellCounts));
@@ -457,10 +481,9 @@ int main(void)
     // Initialize camera centered on the world
     InitCamera();
 
-    // Initialize boids
-    srand(42);
-    InitSwarmColors();
-    InitBoids();
+    // Initialize boids with randomized parameters
+    srand(time(0));
+    ResetSimulation();
 
     // Mouse drag state
     bool isDragging = false;
@@ -540,7 +563,7 @@ int main(void)
         // Handle input (reset)
         if (IsKeyPressed(KEY_R))
         {
-            InitBoids();
+            ResetSimulation();
         }
 
         // Update simulation
@@ -558,13 +581,17 @@ int main(void)
         EndMode2D();
 
         // UI (screen-space, not affected by camera)
-        int ls = 25;
+        int ls = 22;
         DrawFPS(10, 10);
-        char buf[128];
-        snprintf(buf, sizeof(buf), "Swarms: %d  |  Boids: %d", NumSwarms, BoidCount);
-        DrawText(buf, 10, 10 + ls, 20, LIGHTGRAY);
-        DrawText("R to reset  |  Click to attract  |  Right-click to repel", 10, 10 + 2 * ls, 20, LIGHTGRAY);
-        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 3 * ls, 20, LIGHTGRAY);
+        char buf[256];
+        snprintf(buf, sizeof(buf), "Swarms: %d  |  Boids: %d  |  Speed: %.0f  |  Force: %.0f",
+            NumSwarms, BoidCount, MaxSpeed, MaxForce);
+        DrawText(buf, 10, 10 + ls, 18, LIGHTGRAY);
+        snprintf(buf, sizeof(buf), "Perception: %.0f  |  Separation: %.0f",
+            PerceptionRadius, SeparationRadius);
+        DrawText(buf, 10, 10 + 2 * ls, 18, LIGHTGRAY);
+        DrawText("R to randomize  |  Click to attract  |  Right-click to repel", 10, 10 + 3 * ls, 18, LIGHTGRAY);
+        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 4 * ls, 18, LIGHTGRAY);
         EndDrawing();
     }
 
