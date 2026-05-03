@@ -31,7 +31,9 @@ const float BoidSize = 16.0f;
 static int NumSwarms = 3;
 static int BoidsPerSwarm = BoidCount / NumSwarms;
 static float MaxSpeed = 200.0f;
+static float MaxSpeedSq = MaxSpeed * MaxSpeed;
 static float MaxForce = 100.0f;
+static float MaxForceSq = MaxForce * MaxForce;
 static float PerceptionRadius = 80.0f;
 static float PerceptionRadiusSq = PerceptionRadius * PerceptionRadius;
 static float SeparationRadius = 30.0f;
@@ -175,7 +177,9 @@ static void ResetSimulation()
 
     // Randomize movement parameters within sensible ranges
     MaxSpeed = 200.0f + (float)(rand() % 201);
+    MaxSpeedSq = MaxSpeed * MaxSpeed;
     MaxForce = 50.0f + (float)(rand() % 151);
+    MaxForceSq = MaxForce * MaxForce;
     PerceptionRadius = 50.0f + (float)(rand() % 71);
     PerceptionRadiusSq = PerceptionRadius * PerceptionRadius;
     SeparationRadius = 15.0f + (float)(rand() % 36);
@@ -206,23 +210,43 @@ static void BuildSpatialGrid()
 // ── Update ───────────────────────────────────────────────────────────────────
 static void UpdateBoids(float dt)
 {
-    Vector2 mousePos = { 0, 0 };
+    float mouseX = 0, mouseY = 0;
     bool mouseActive = false;
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
     {
-        mousePos = GetMousePosition();
-        mousePos = GetScreenToWorld2D(mousePos, camera);
+        Vector2 mp = GetMousePosition();
+        mp = GetScreenToWorld2D(mp, camera);
+        mouseX = mp.x;
+        mouseY = mp.y;
         mouseActive = true;
     }
 
-    Vector2 rightClickPos = { 0, 0 };
+    float repelX = 0, repelY = 0;
     bool repelActive = false;
     if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     {
-        rightClickPos = GetMousePosition();
-        rightClickPos = GetScreenToWorld2D(rightClickPos, camera);
+        Vector2 rp = GetMousePosition();
+        rp = GetScreenToWorld2D(rp, camera);
+        repelX = rp.x;
+        repelY = rp.y;
         repelActive = true;
     }
+
+    // Cache constants locally for better codegen
+    const float maxSpeed = MaxSpeed;
+    const float maxSpeedSq = MaxSpeedSq;
+    const float maxForce = MaxForce;
+    const float maxForceSq = MaxForceSq;
+    const float perceptionRadiusSq = PerceptionRadiusSq;
+    const float separationRadiusSq = SeparationRadiusSq;
+    const float sepWeight = SeparationWeight;
+    const float aliWeight = AlignmentWeight;
+    const float cohWeight = CohesionWeight;
+    const float turnForce = TurnForce;
+    const float boundaryMargin = BoundaryMargin;
+    const float worldW = WORLD_WIDTH;
+    const float worldH = WORLD_HEIGHT;
+    const float boidSize = BoidSize;
 
     // First pass: compute accelerations using spatial grid
     for (int i = 0; i < BoidCount; i++)
@@ -250,29 +274,30 @@ static void UpdateBoids(float dt)
 
         for (int r = minRow; r <= maxRow; r++)
         {
+            int rowOffset = r * GridCols;
             for (int c = minCol; c <= maxCol; c++)
             {
-                int cellBase = (r * GridCols + c) * MaxBoidsPerCell;
-                int count = gridCellCounts[r * GridCols + c];
+                int cellBase = (rowOffset + c) * MaxBoidsPerCell;
+                int count = gridCellCounts[rowOffset + c];
 
                 for (int k = 0; k < count; k++)
                 {
                     int j = gridCells[cellBase + k];
                     if (j == i) continue;
 
-                    Boid& other = boids[j];
+                    const Boid& other = boids[j];
                     float dx = posX - other.Position.x;
                     float dy = posY - other.Position.y;
                     float distSq = dx * dx + dy * dy;
 
-                    if (distSq < PerceptionRadiusSq && distSq > 0.001f)
+                    if (distSq < perceptionRadiusSq && distSq > 0.001f)
                     {
                         // Separation from all boids
-                        if (distSq < SeparationRadiusSq)
+                        if (distSq < separationRadiusSq)
                         {
-                            float invDist = InvSqrt(distSq);
-                            sepX += dx * invDist * invDist; // dx / dist^2
-                            sepY += dy * invDist * invDist;
+                            float invDistSq = 1.0f / distSq; // 1/dist^2
+                            sepX += dx * invDistSq;
+                            sepY += dy * invDistSq;
                             sepCount++;
                         }
 
@@ -298,78 +323,88 @@ static void UpdateBoids(float dt)
             float invSepCount = 1.0f / sepCount;
             float sx = sepX * invSepCount;
             float sy = sepY * invSepCount;
-            float len = sqrtf(sx * sx + sy * sy);
-            if (len > 0.001f)
+            float lenSq = sx * sx + sy * sy;
+            if (lenSq > 0.0001f)
             {
-                float desiredX = sx / len * MaxSpeed - boid.Velocity.x;
-                float desiredY = sy / len * MaxSpeed - boid.Velocity.y;
-                float dLen = sqrtf(desiredX * desiredX + desiredY * desiredY);
-                if (dLen > MaxForce)
+                // Normalize and scale to maxSpeed, then subtract velocity
+                float invLen = InvSqrt(lenSq);
+                float desiredX = sx * invLen * maxSpeed - boid.Velocity.x;
+                float desiredY = sy * invLen * maxSpeed - boid.Velocity.y;
+                // Limit force using squared comparison
+                float dLenSq = desiredX * desiredX + desiredY * desiredY;
+                if (dLenSq > maxForceSq)
                 {
-                    desiredX = desiredX / dLen * MaxForce;
-                    desiredY = desiredY / dLen * MaxForce;
+                    float invDLen = InvSqrt(dLenSq) * maxForce;
+                    desiredX *= invDLen;
+                    desiredY *= invDLen;
                 }
-                accX += desiredX * SeparationWeight;
-                accY += desiredY * SeparationWeight;
+                accX += desiredX * sepWeight;
+                accY += desiredY * sepWeight;
             }
         }
 
-        // Alignment force
+        // Alignment & Cohesion
         if (neighborCount > 0)
         {
             float invN = 1.0f / neighborCount;
+
+            // Alignment
             float ax = aliX * invN;
             float ay = aliY * invN;
-            float len = sqrtf(ax * ax + ay * ay);
-            if (len > 0.001f)
+            float aLenSq = ax * ax + ay * ay;
+            if (aLenSq > 0.0001f)
             {
-                float desiredX = ax / len * MaxSpeed - boid.Velocity.x;
-                float desiredY = ay / len * MaxSpeed - boid.Velocity.y;
-                float dLen = sqrtf(desiredX * desiredX + desiredY * desiredY);
-                if (dLen > MaxForce)
+                float invALen = InvSqrt(aLenSq);
+                float desiredX = ax * invALen * maxSpeed - boid.Velocity.x;
+                float desiredY = ay * invALen * maxSpeed - boid.Velocity.y;
+                float dLenSq = desiredX * desiredX + desiredY * desiredY;
+                if (dLenSq > maxForceSq)
                 {
-                    desiredX = desiredX / dLen * MaxForce;
-                    desiredY = desiredY / dLen * MaxForce;
+                    float invDLen = InvSqrt(dLenSq) * maxForce;
+                    desiredX *= invDLen;
+                    desiredY *= invDLen;
                 }
-                accX += desiredX * AlignmentWeight;
-                accY += desiredY * AlignmentWeight;
+                accX += desiredX * aliWeight;
+                accY += desiredY * aliWeight;
             }
 
-            // Cohesion force
+            // Cohesion
             float cx = cohX * invN - posX;
             float cy = cohY * invN - posY;
-            float cLen = sqrtf(cx * cx + cy * cy);
-            if (cLen > 0.001f)
+            float cLenSq = cx * cx + cy * cy;
+            if (cLenSq > 0.0001f)
             {
-                float desiredX = cx / cLen * MaxSpeed - boid.Velocity.x;
-                float desiredY = cy / cLen * MaxSpeed - boid.Velocity.y;
-                float dLen = sqrtf(desiredX * desiredX + desiredY * desiredY);
-                if (dLen > MaxForce)
+                float invCLen = InvSqrt(cLenSq);
+                float desiredX = cx * invCLen * maxSpeed - boid.Velocity.x;
+                float desiredY = cy * invCLen * maxSpeed - boid.Velocity.y;
+                float dLenSq = desiredX * desiredX + desiredY * desiredY;
+                if (dLenSq > maxForceSq)
                 {
-                    desiredX = desiredX / dLen * MaxForce;
-                    desiredY = desiredY / dLen * MaxForce;
+                    float invDLen = InvSqrt(dLenSq) * maxForce;
+                    desiredX *= invDLen;
+                    desiredY *= invDLen;
                 }
-                accX += desiredX * CohesionWeight;
-                accY += desiredY * CohesionWeight;
+                accX += desiredX * cohWeight;
+                accY += desiredY * cohWeight;
             }
         }
 
         // Boundary avoidance
-        if (posX < BoundaryMargin)
-            accX += TurnForce;
-        else if (posX > WORLD_WIDTH - BoundaryMargin)
-            accX -= TurnForce;
+        if (posX < boundaryMargin)
+            accX += turnForce;
+        else if (posX > worldW - boundaryMargin)
+            accX -= turnForce;
 
-        if (posY < BoundaryMargin)
-            accY += TurnForce;
-        else if (posY > WORLD_HEIGHT - BoundaryMargin)
-            accY -= TurnForce;
+        if (posY < boundaryMargin)
+            accY += turnForce;
+        else if (posY > worldH - boundaryMargin)
+            accY -= turnForce;
 
         // Mouse interaction
         if (mouseActive)
         {
-            float dx = mousePos.x - posX;
-            float dy = mousePos.y - posY;
+            float dx = mouseX - posX;
+            float dy = mouseY - posY;
             float distSq = dx * dx + dy * dy;
             if (distSq < 22500.0f && distSq > 0.001f)
             {
@@ -381,8 +416,8 @@ static void UpdateBoids(float dt)
 
         if (repelActive)
         {
-            float dx = posX - rightClickPos.x;
-            float dy = posY - rightClickPos.y;
+            float dx = posX - repelX;
+            float dy = posY - repelY;
             float distSq = dx * dx + dy * dy;
             if (distSq < 22500.0f && distSq > 0.001f)
             {
@@ -403,11 +438,11 @@ static void UpdateBoids(float dt)
         float vx = boid.Velocity.x + boid.Acceleration.x * dt;
         float vy = boid.Velocity.y + boid.Acceleration.y * dt;
 
-        // Limit speed
+        // Limit speed using pre-computed MaxSpeedSq
         float speedSq = vx * vx + vy * vy;
-        if (speedSq > MaxSpeed * MaxSpeed)
+        if (speedSq > maxSpeedSq)
         {
-            float invSpeed = InvSqrt(speedSq) * MaxSpeed;
+            float invSpeed = InvSqrt(speedSq) * maxSpeed;
             vx *= invSpeed;
             vy *= invSpeed;
         }
@@ -416,10 +451,10 @@ static void UpdateBoids(float dt)
         float py = boid.Position.y + vy * dt;
 
         // Wrap around (world bounds)
-        if (px < -BoidSize) px = WORLD_WIDTH + BoidSize;
-        else if (px > WORLD_WIDTH + BoidSize) px = -BoidSize;
-        if (py < -BoidSize) py = WORLD_HEIGHT + BoidSize;
-        else if (py > WORLD_HEIGHT + BoidSize) py = -BoidSize;
+        if (px < -boidSize) px = worldW + boidSize;
+        else if (px > worldW + boidSize) px = -boidSize;
+        if (py < -boidSize) py = worldH + boidSize;
+        else if (py > worldH + boidSize) py = -boidSize;
 
         boid.Velocity = Vector2{ vx, vy };
         boid.Position = Vector2{ px, py };
