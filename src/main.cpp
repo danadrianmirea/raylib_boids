@@ -22,10 +22,10 @@ static int ScreenWidth  = SCREEN_WIDTH;
 static int ScreenHeight = SCREEN_HEIGHT;
 
 // ── Simulation Constants ─────────────────────────────────────────────────────
-const int NumSwarms = 20;
-const int BoidsPerSwarm = 500;
+const int NumSwarms = 3;
+const int BoidsPerSwarm = 1500;
 const int BoidCount = NumSwarms * BoidsPerSwarm;
-const float BoidSize = 12.0f;
+const float BoidSize = 16.0f;
 const float MaxSpeed = 200.0f;
 const float MaxForce = 100.0f;
 const float PerceptionRadius = 80.0f;
