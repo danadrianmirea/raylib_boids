@@ -1,4 +1,5 @@
 #include <raylib.h>
+#include <rlgl.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -425,6 +426,10 @@ static void UpdateBoids(float dt)
     }
 }
 
+// ── Timing Statistics ────────────────────────────────────────────────────────
+static double updateTimeMs = 0.0;
+static double drawTimeMs = 0.0;
+
 // ── Drawing ──────────────────────────────────────────────────────────────────
 static void DrawBorders()
 {
@@ -436,40 +441,59 @@ static void DrawBorders()
 
 static void DrawBoids()
 {
+    // Batch all boid triangles into a single draw call using rlgl
+    rlBegin(RL_TRIANGLES);
+
     for (int i = 0; i < BoidCount; i++)
     {
-        Boid& boid = boids[i];
-        Vector2 pos = boid.Position;
-        Vector2 vel = boid.Velocity;
+        const Boid& boid = boids[i];
+        float posX = boid.Position.x;
+        float posY = boid.Position.y;
+        float vx = boid.Velocity.x;
+        float vy = boid.Velocity.y;
 
         // Direction angle
-        float angle = atan2f(vel.y, vel.x);
-        float cosA = cosf(angle);
-        float sinA = sinf(angle);
+        float cosA, sinA;
+        float lenSq = vx * vx + vy * vy;
+        if (lenSq > 0.0001f)
+        {
+            float invLen = InvSqrt(lenSq);
+            cosA = vx * invLen;
+            sinA = vy * invLen;
+        }
+        else
+        {
+            cosA = 1.0f;
+            sinA = 0.0f;
+        }
 
         // Tip
-        float tipX = pos.x + cosA * TipOffset;
-        float tipY = pos.y + sinA * TipOffset;
+        float tipX = posX + cosA * TipOffset;
+        float tipY = posY + sinA * TipOffset;
 
         // Left wing (angle + 2.5 rad)
         float cosLeftA = cosA * CosLeft - sinA * SinLeft;
         float sinLeftA = sinA * CosLeft + cosA * SinLeft;
-        float leftX = pos.x + cosLeftA * BackOffset;
-        float leftY = pos.y + sinLeftA * BackOffset;
+        float leftX = posX + cosLeftA * BackOffset;
+        float leftY = posY + sinLeftA * BackOffset;
 
         // Right wing (angle - 2.5 rad)
         float cosRightA = cosA * CosRight - sinA * SinRight;
         float sinRightA = sinA * CosRight + cosA * SinRight;
-        float rightX = pos.x + cosRightA * BackOffset;
-        float rightY = pos.y + sinRightA * BackOffset;
+        float rightX = posX + cosRightA * BackOffset;
+        float rightY = posY + sinRightA * BackOffset;
 
-        DrawTriangle(
-            Vector2{ tipX, tipY },
-            Vector2{ rightX, rightY },
-            Vector2{ leftX, leftY },
-            boid.Color);
+        // Set color once per triangle
+        rlColor4ub(boid.Color.r, boid.Color.g, boid.Color.b, boid.Color.a);
+
+        rlVertex2f(tipX, tipY);
+        rlVertex2f(rightX, rightY);
+        rlVertex2f(leftX, leftY);
     }
+
+    rlEnd();
 }
+
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 int main(void)
@@ -566,22 +590,28 @@ int main(void)
             ResetSimulation();
         }
 
-        // Update simulation
+        // Update simulation with timing
+        double t0 = GetTime();
         BuildSpatialGrid();
         UpdateBoids(dt);
+        double t1 = GetTime();
+        updateTimeMs = (t1 - t0) * 1000.0;
 
-        // Render
+        // Render with timing
         BeginDrawing();
         ClearBackground(Color{ 15, 15, 25, 255 });
 
         // World-space rendering (affected by camera)
         BeginMode2D(camera);
         DrawBorders();
+        double t2 = GetTime();
         DrawBoids();
+        double t3 = GetTime();
+        drawTimeMs = (t3 - t2) * 1000.0;
         EndMode2D();
 
         // UI (screen-space, not affected by camera)
-        int ls = 22;
+        int ls = 20;
         DrawFPS(10, 10);
         char buf[256];
         snprintf(buf, sizeof(buf), "Swarms: %d  |  Boids: %d  |  Speed: %.0f  |  Force: %.0f",
@@ -590,8 +620,11 @@ int main(void)
         snprintf(buf, sizeof(buf), "Perception: %.0f  |  Separation: %.0f",
             PerceptionRadius, SeparationRadius);
         DrawText(buf, 10, 10 + 2 * ls, 18, LIGHTGRAY);
-        DrawText("R to randomize  |  Click to attract  |  Right-click to repel", 10, 10 + 3 * ls, 18, LIGHTGRAY);
-        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 4 * ls, 18, LIGHTGRAY);
+        snprintf(buf, sizeof(buf), "Update: %.2f ms  |  Draw: %.2f ms",
+            updateTimeMs, drawTimeMs);
+        DrawText(buf, 10, 10 + 3 * ls, 18, LIGHTGRAY);
+        DrawText("R to randomize  |  Click to attract  |  Right-click to repel", 10, 10 + 4 * ls, 18, LIGHTGRAY);
+        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 5 * ls, 18, LIGHTGRAY);
         EndDrawing();
     }
 
