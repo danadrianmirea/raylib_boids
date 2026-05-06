@@ -6,7 +6,6 @@ A [Boids](https://en.wikipedia.org/wiki/Boids) flocking simulation built with [r
 
 - **Flocking Simulation** — Implements Craig Reynolds' Boids algorithm with separation, alignment, and cohesion rules.
 - **Interactive Controls** — Click and drag to spawn boids, right-click to attract/repel them.
-- **Audio Feedback** — Plays a sound effect on each click.
 - **Custom Font** — Uses Press Start 2P for retro-style UI text.
 - **Web Build** — Can be compiled to WebAssembly via Emscripten and run in a browser.
 
