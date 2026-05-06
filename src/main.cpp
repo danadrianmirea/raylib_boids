@@ -543,11 +543,6 @@ int main(void)
     srand(time(0));
     ResetSimulation();
 
-    // Mouse drag state
-    bool isDragging = false;
-    Vector2 dragStart = { 0, 0 };
-    Vector2 camTargetAtDragStart = { 0, 0 };
-
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime();
@@ -593,28 +588,6 @@ int main(void)
             Vector2 newWorldPos = GetScreenToWorld2D(mousePos, camera);
             camera.target.x += worldPos.x - newWorldPos.x;
             camera.target.y += worldPos.y - newWorldPos.y;
-        }
-
-        // Mouse drag panning
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-        {
-            isDragging = true;
-            dragStart = GetMousePosition();
-            camTargetAtDragStart = camera.target;
-        }
-        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
-        {
-            isDragging = false;
-        }
-        if (isDragging && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
-        {
-            Vector2 mousePos = GetMousePosition();
-            Vector2 delta = {
-                (dragStart.x - mousePos.x) / camera.zoom,
-                (dragStart.y - mousePos.y) / camera.zoom
-            };
-            camera.target.x = camTargetAtDragStart.x + delta.x;
-            camera.target.y = camTargetAtDragStart.y + delta.y;
         }
 
         // Clamp camera target to pan limits
@@ -665,7 +638,7 @@ int main(void)
         DrawText("R to randomize  |  Click to attract  |  Right-click to repel", 10, 10 + 4 * ls, 18, LIGHTGRAY);
         snprintf(buf, sizeof(buf), "Zoom: %.1fx", camera.zoom);
         DrawText(buf, 10, 10 + 5 * ls, 18, LIGHTGRAY);
-        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  +/- or Scroll to zoom", 10, 10 + 6 * ls, 18, LIGHTGRAY);
+        DrawText("WASD/Arrows to pan  |  +/- or Scroll to zoom", 10, 10 + 6 * ls, 18, LIGHTGRAY);
         EndDrawing();
     }
 
