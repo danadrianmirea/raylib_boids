@@ -28,7 +28,7 @@ const int BoidCount = 4500;
 const float BoidSize = 16.0f;
 
 // Runtime parameters (randomized on reset)
-static int NumSwarms = 3;
+static int NumSwarms = 2;
 static int BoidsPerSwarm = BoidCount / NumSwarms;
 static float MaxSpeed = 200.0f;
 static float MaxSpeedSq = MaxSpeed * MaxSpeed;
@@ -171,8 +171,7 @@ static void InitBoids()
 // ── Reset / Randomize ────────────────────────────────────────────────────────
 static void ResetSimulation()
 {
-    // Randomize number of swarms (2 to 6)
-    NumSwarms = 3 + rand() % 4; // 2, 3, 4, 5, or 6
+    NumSwarms = 2 + rand() % 2;
     BoidsPerSwarm = BoidCount / NumSwarms;
 
     // Randomize movement parameters within sensible ranges
