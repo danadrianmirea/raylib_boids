@@ -529,7 +529,6 @@ static void DrawBoids()
     rlEnd();
 }
 
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 int main(void)
 {
@@ -575,14 +574,19 @@ int main(void)
         if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
             camera.target.x += panSpeed * dt;
 
-        // Mouse wheel zoom
+        // Zoom: mouse wheel OR +/- keys (continuous while held)
+        float zoomDelta = 0;
         float wheel = GetMouseWheelMove();
-        if (wheel != 0)
+        if (wheel != 0) zoomDelta = wheel;
+        if (IsKeyDown(KEY_EQUAL) || IsKeyDown(KEY_KP_ADD)) zoomDelta = dt * 10.0f;
+        if (IsKeyDown(KEY_MINUS) || IsKeyDown(KEY_KP_SUBTRACT)) zoomDelta = -dt * 10.0f;
+
+        if (zoomDelta != 0)
         {
             Vector2 mousePos = GetMousePosition();
             Vector2 worldPos = GetScreenToWorld2D(mousePos, camera);
 
-            camera.zoom *= (1.0f + wheel * 0.1f);
+            camera.zoom *= (1.0f + zoomDelta * 0.1f);
             if (camera.zoom < 0.1f) camera.zoom = 0.1f;
             if (camera.zoom > 10.0f) camera.zoom = 10.0f;
 
@@ -659,7 +663,9 @@ int main(void)
             updateTimeMs, drawTimeMs);
         DrawText(buf, 10, 10 + 3 * ls, 18, LIGHTGRAY);
         DrawText("R to randomize  |  Click to attract  |  Right-click to repel", 10, 10 + 4 * ls, 18, LIGHTGRAY);
-        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  Scroll to zoom", 10, 10 + 5 * ls, 18, LIGHTGRAY);
+        snprintf(buf, sizeof(buf), "Zoom: %.1fx", camera.zoom);
+        DrawText(buf, 10, 10 + 5 * ls, 18, LIGHTGRAY);
+        DrawText("WASD/Arrows to pan  |  Mouse drag to pan  |  +/- or Scroll to zoom", 10, 10 + 6 * ls, 18, LIGHTGRAY);
         EndDrawing();
     }
 
