@@ -11,7 +11,6 @@
 #endif
 #include <ctime>
 
-// ── Constants ────────────────────────────────────────────────────────────────
 // World dimensions (the simulation runs in a 1920x1080 coordinate space)
 #define WORLD_WIDTH  1920
 #define WORLD_HEIGHT 1080
@@ -23,7 +22,6 @@
 static int ScreenWidth  = SCREEN_WIDTH;
 static int ScreenHeight = SCREEN_HEIGHT;
 
-// ── Simulation Constants ─────────────────────────────────────────────────────
 const int BoidCount = 4500;
 const float BoidSize = 16.0f;
 
@@ -54,16 +52,13 @@ const int GridCols = WORLD_WIDTH / GridCellSize + 2;
 const int GridRows = WORLD_HEIGHT / GridCellSize + 2;
 const int MaxBoidsPerCell = 64;
 
-// ── Camera ───────────────────────────────────────────────────────────────────
 static Camera2D camera;
 
-// ── Pan limits (world-space) ─────────────────────────────────────────────────
 static float panLimitLeft   = -WORLD_WIDTH * 2.0f;
 static float panLimitRight  =  WORLD_WIDTH * 2.0f;
 static float panLimitTop    = -WORLD_HEIGHT;
 static float panLimitBottom =  WORLD_HEIGHT;
 
-// ── Boid Data ────────────────────────────────────────────────────────────────
 struct Boid
 {
     Vector2 Position;
@@ -90,7 +85,6 @@ static const float SinLeft = sinf(LeftAngle);
 static const float CosRight = cosf(RightAngle);
 static const float SinRight = sinf(RightAngle);
 
-// ── Forward Declarations ─────────────────────────────────────────────────────
 static void InitBoids();
 static void InitSwarmColors();
 static void ResetSimulation();
@@ -101,7 +95,6 @@ static void DrawBoids();
 static void DrawBorders();
 static float InvSqrt(float x);
 
-// ── Camera ───────────────────────────────────────────────────────────────────
 void InitCamera()
 {
     camera.target = Vector2{ (float)WORLD_WIDTH * 0.5f, (float)WORLD_HEIGHT * 0.5f };
@@ -112,7 +105,6 @@ void InitCamera()
     camera.zoom = (float)ScreenWidth / WORLD_WIDTH;
 }
 
-// ── Helper Functions ─────────────────────────────────────────────────────────
 static float InvSqrt(float x)
 {
     return 1.0f / sqrtf(x);
@@ -130,7 +122,6 @@ static int GetCellIndex(float x, float y)
     return row * GridCols + col;
 }
 
-// ── Initialization ───────────────────────────────────────────────────────────
 static void InitSwarmColors()
 {
     for (int s = 0; s < NumSwarms; s++)
@@ -168,7 +159,6 @@ static void InitBoids()
     }
 }
 
-// ── Reset / Randomize ────────────────────────────────────────────────────────
 static void ResetSimulation()
 {
     NumSwarms = 2 + rand() % 2;
@@ -188,8 +178,6 @@ static void ResetSimulation()
     InitBoids();
 }
 
-// ── Spatial Grid ─────────────────────────────────────────────────────────────
-
 static void BuildSpatialGrid()
 {
     memset(gridCellCounts, 0, sizeof(gridCellCounts));
@@ -206,7 +194,6 @@ static void BuildSpatialGrid()
     }
 }
 
-// ── Update ───────────────────────────────────────────────────────────────────
 static void UpdateBoids(float dt)
 {
     float mouseX = 0, mouseY = 0;
@@ -460,11 +447,9 @@ static void UpdateBoids(float dt)
     }
 }
 
-// ── Timing Statistics ────────────────────────────────────────────────────────
 static double updateTimeMs = 0.0;
 static double drawTimeMs = 0.0;
 
-// ── Drawing ──────────────────────────────────────────────────────────────────
 static void DrawBorders()
 {
     DrawRectangleLinesEx(
@@ -528,7 +513,6 @@ static void DrawBoids()
     rlEnd();
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 int main(void)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
